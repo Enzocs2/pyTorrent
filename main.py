@@ -33,44 +33,48 @@ def decode_integer(x):
         raise ValueError("Invalid Input")
 
 def decode_list(x):
-    
     index = 1
-    decoded_list = []
-    while index != len(x):
-        if index > len(x):
-            raise ValueError("Invalid List")
-        if chr(x[index]) == 'i':
-            e_index = x[index:].find(b'e')
-            if e_index == -1:
-                raise ValueError("Invalid List")
-            decoded_list.append(decode_integer(x[index:index + e_index + 1]))
-            index += e_index + 2
-        elif chr(x[index]).isdigit():
-            colon_index = x.find(b':')
-            if x[index:colon_index].isdigit():
-                size_of_x = int(x[index:colon_index])
+    ans_list = []
+    while not(chr(x[index]) == 'e'):
+        if chr(x[index]).isdigit():
+            number_part = x[index:].find(b':') + index
+            if x[index:number_part].isdigit():
+                size_of_x = int(x[index:number_part])
             else:
-                raise ValueError('Invalid List')
-            decoded_list.append(decode_string(x[index:colon_index + size_of_x+1]))
-            index = colon_index + size_of_x+1
-        else:
-            raise ValueError('Invalid List')
-    return decoded_list
+                raise ValueError('Invalid string size')
+            ans_list.append(decode_string(x[index:number_part + size_of_x + 1]))
+            index = number_part + size_of_x + 1
+        elif chr(x[index]) == 'i':
+            e_index = x[index:].find(b'e') + index
+            print(x[index:e_index+1])
+            ans_list.append(decode_integer(x[index:e_index+1]))
+            index = e_index + 1
+        elif chr(x[index]) == 'd':
+            ans_list.append(decode_dictionary(x[index:]))
+        elif chr(x[index]) == 'l':
+            ans, nested_index = decode_list(x[index:])
+            print(ans, nested_index)
+            ans_list.append(ans)
+            index += nested_index
+    return (ans_list, index)
 
-
-# Examples:
-# - decode_bencode(b"5:hello") -> b"hello"
-# - decode_bencode(b"10:hello12345") -> b"hello12345"
-def decode_bencode(bencoded_value):
-
-    if chr(bencoded_value[0]).isdigit():
-        return decode_string(bencoded_value)
-    elif chr(bencoded_value[0]) == 'i':
-        return decode_integer(bencoded_value)
-    elif chr(bencoded_value[0] == 'l'):
-        return decode_list(bencoded_value)
-
-    raise NotImplementedError("Only strings are supported at the moment")
+def decode_dictionary(x):
+    index = 1
+    name_value = 0
+    while index != len(x):
+        name = decode_string(x[index])
+        index += len(name)
+        decode_bencode(x[index:])
+    
+def decode_bencode(x):
+    if chr(x[0]).isdigit():
+        return decode_string(x)
+    elif chr(x[0]) == 'i':
+        return decode_integer(x)
+    elif chr(x[0]) == 'd':
+        return decode_dictionary(x)
+    elif chr(x[0] == 'l'):
+        return decode_list(x)
 
 def main():
     command = sys.argv[1]
@@ -78,9 +82,6 @@ def main():
     if command == "decode":
         bencoded_value = sys.argv[2].encode()
 
-        # json.dumps() can't handle bytes, but bencoded "strings" need to be
-        # bytestrings since they might contain non utf-8 characters.
-        # Let's convert them to strings for printing to the console.
         def bytes_to_str(data):
             if isinstance(data, bytes):
                 return data.decode()
