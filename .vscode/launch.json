@@ -11,7 +11,7 @@
             "program": "${file}",
             "args": [
                 "decode",
-                "li10el5:apple6:orangeei20ee"
+                "d4:datali10ei20ed3:foo3:baree7:versioni1ee"
             ],
             "justMyCode": true
         }
