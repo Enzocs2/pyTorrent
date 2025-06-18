@@ -1,5 +1,7 @@
 import sys
 import hashlib
+import requests
+import struct
 
 def decode_string(x):
     colon_index = x.find(b":")
@@ -113,33 +115,64 @@ def encode_dict(x):
             print("Error: ", e)
     return b'd' + encoded_value + b'e'
 
+def parse_peer(x):
+    ips = [x[i:i+6] for i in range(0,len(x),6)]
+    ips_decoded = []
+    for i in ips:
+        cur_ip = ''
+        for j in range(0,3):
+            cur_ip += '.' + str(i[j])
+        cur_ip += ":" + str(i[4]*256 + i[5])
+        ips_decoded.append(cur_ip[1:])
+    return ips_decoded
 
 def main():
     command = sys.argv[1]
 
     if command == "decode":
         bencoded_value = sys.argv[2].encode()
-
-        def bytes_to_str(data):
-            if isinstance(data, bytes):
-                return data.decode()
-
-            raise TypeError(f"Type not serializable: {type(data)}")
         print(decode_bencode(bencoded_value))
-    if command == "info":
+    elif command == "info":
         try:
             file_name = sys.argv[2].encode()
             with open(file_name, 'rb') as f:
                 content = f.read()
                 val, _ = decode_bencode(content) # type: ignore
-                print('Tracker URL: ', val[b'announce'], '\nLength: ', val[b'info'][b'length'] )
-                print('Info: ', val[b'info'])
-                print('Info_hash: ',(hashlib.sha1(encode_dict(val[b'info'])).hexdigest()))
-                print('Piece Length: ', val[b'info'][b'piece length'])
+                print('Tracker URL: ', val[b'announce'], 
+                      '\nLength: ', val[b'info'][b'length'], 
+                      '\nInfo_hash: ',(hashlib.sha1(encode_dict(val[b'info'])).hexdigest()),
+                      '\nPiece Length: ', val[b'info'][b'piece length'])
                 pieces = val[b"info"][b"pieces"].hex()
                 pieces_hashes = [pieces[i:i+40] for i in range(0,len(pieces),40)]
                 print(pieces_hashes)
+        except FileNotFoundError:
+            print("Error: The file was not found.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            
+    elif command == "peers":
+        try:
+            file_name = sys.argv[2].encode()
+            with open(file_name, 'rb') as f:
+                content = f.read()
+                val, _ = decode_bencode(content) # type: ignore
+                info_hash = hashlib.sha1(encode_dict(val[b'info'])).digest()
+                params = {
+                    'info_hash': info_hash,
+                    'peer_id': "iTR2940ik8hj12hklasd",
+                    'port': 6881,
+                    'uploaded': 0,
+                    'downloaded': 0,
+                    'left': (val[b"info"][b"length"]),
+                    'compact': 1
+                }
 
+                response = requests.get(val[b'announce'], params=params, timeout=5)
+
+                if response.status_code == 200:
+                    response_dict, _ = decode_bencode(response.content) # type: ignore
+                peers = parse_peer(response_dict[b'peers'])  
+                print(peers)              
         except FileNotFoundError:
             print("Error: The file was not found.")
         except Exception as e:
